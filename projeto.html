@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Estoque</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f2f2f2;
+        }
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            padding-top: 50px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        form {
+            margin-bottom: 20px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        input[type="text"], input[type="number"] {
+            padding: 8px;
+            width: calc(100% - 20px);
+            margin-bottom: 10px;
+        }
+        input[type="submit"], .delete-btn, .sell-btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover, .delete-btn:hover, .sell-btn:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Controle de Estoque</h1>
+        
+        <h2>Adicionar Produto</h2>
+        <form id="addProductForm">
+            <label for="productName">Nome do Produto:</label>
+            <input type="text" id="productName" name="productName" required><br>
+            <label for="productSku">SKU:</label>
+            <input type="text" id="productSku" name="productSku" required><br>
+            <label for="productQuantity">Quantidade:</label>
+            <input type="number" id="productQuantity" name="productQuantity" required><br>
+            <label for="productValue">Valor:</label>
+            <input type="number" id="productValue" name="productValue" required><br>
+            <input type="submit" value="Adicionar Produto">
+        </form>
+
+        <h2>Lista de Produtos</h2>
+        <table id="productTable">
+            <thead>
+                <tr>
+                    <th>Nome do Produto</th>
+                    <th>SKU</th>
+                    <th>Quantidade</th>
+                    <th>Valor</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Os produtos serão listados aqui -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Função para adicionar um produto à tabela
+        function addProduct() {
+            var productName = document.getElementById('productName').value;
+            var productSku = document.getElementById('productSku').value;
+            var productQuantity = document.getElementById('productQuantity').value;
+            var productValue = document.getElementById('productValue').value;
+            var table = document.getElementById('productTable').getElementsByTagName('tbody')[0];
+            var existingProduct = findProductBySku(productSku);
+            
+            if (existingProduct) {
+                // Se o produto já existir, aumenta a quantidade e o valor
+                var quantityCell = existingProduct.querySelector('.product-quantity');
+                var valueCell = existingProduct.querySelector('.product-value');
+                var currentQuantity = parseInt(quantityCell.innerHTML);
+                var currentValue = parseFloat(valueCell.innerHTML.substring(1));
+                quantityCell.innerHTML = currentQuantity + parseInt(productQuantity);
+                valueCell.innerHTML = '$' + (currentValue + parseFloat(productValue));
+            } else {
+                // Se o produto não existir, adiciona-o à tabela
+                var newRow = table.insertRow(table.rows.length);
+                var cell1 = newRow.insertCell(0);
+                var cell2 = newRow.insertCell(1);
+                var cell3 = newRow.insertCell(2);
+                var cell4 = newRow.insertCell(3);
+                var cell5 = newRow.insertCell(4);
+                cell1.innerHTML = productName;
+                cell2.innerHTML = productSku;
+                cell3.innerHTML = productQuantity;
+                cell3.classList.add('product-quantity'); // Adiciona uma classe para facilitar a identificação
+                cell4.innerHTML = "$" + productValue;
+                cell4.classList.add('product-value'); // Adiciona uma classe para facilitar a identificação
+                cell5.innerHTML = '<input type="number" class="sell-quantity" min="1" max="' + productQuantity + '"> <button class="sell-btn" onclick="sellProduct(this)">Vender</button> <button class="delete-btn" onclick="deleteProduct(this)">Excluir</button>';
+            }
+            
+            // Limpa os campos do formulário
+            document.getElementById('productName').value = '';
+            document.getElementById('productSku').value = '';
+            document.getElementById('productQuantity').value = '';
+            document.getElementById('productValue').value = '';
+        }
+
+        // Função para encontrar um produto na tabela pelo SKU
+        function findProductBySku(sku) {
+            var table = document.getElementById('productTable').getElementsByTagName('tbody')[0];
+            var rows = table.getElementsByTagName('tr');
+            for (var i = 0; i < rows.length; i++) {
+                var productSku = rows[i].cells[1].innerHTML;
+                if (productSku === sku) {
+                    return rows[i];
+                }
+            }
+            return null;
+        }
+
+        // Função para vender um produto
+        function sellProduct(row) {
+            var rowIndex = row.parentNode.parentNode.rowIndex;
+            var table = document.getElementById('productTable');
+            var quantityCell = table.rows[rowIndex].querySelector('.product-quantity');
+            var currentQuantity = parseInt(quantityCell.innerHTML);
+            var sellQuantity = parseInt(table.rows[rowIndex].querySelector('.sell-quantity').value);
+            
+            if (currentQuantity >= sellQuantity) {
+                currentQuantity -= sellQuantity;
+                quantityCell.innerHTML = currentQuantity;
+                
+                if (currentQuantity === 0) {
+                    alert("Estoque do produto esgotado: " + table.rows[rowIndex].cells[0].innerHTML);
+                }
+            } else {
+                alert("Quantidade insuficiente em estoque.");
+            }
+        }
+
+        // Função para excluir um produto
+        function deleteProduct(row) {
+            var rowIndex = row.parentNode.parentNode.rowIndex;
+            document.getElementById('productTable').deleteRow(rowIndex);
+        }
+
+        // Evento de envio do formulário de adicionar produto
+        document.getElementById('addProductForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Impede o envio padrão do formulário
+            addProduct();
+        });
+    </script>
+</body>
+</html>
