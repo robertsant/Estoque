@@ -4,12 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Estoque</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f2f2f2;
+            background-color: #f0f0f0;
         }
         .container {
             width: 80%;
@@ -23,33 +24,67 @@
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: left;
         }
         th {
-            background-color: #f2f2f2;
+            background-color: #6d4caf;
+            color: white;
+            font-weight: bold;
         }
         form {
             margin-bottom: 20px;
             background-color: #fff;
             padding: 20px;
-            border-radius: 5px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        input[type="text"], input[type="number"] {
-            padding: 8px;
+        input[type="text"], input[type="number"], input[type="submit"] {
+            padding: 10px;
             width: calc(100% - 20px);
             margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
         }
-        input[type="submit"], .delete-btn, .sell-btn {
-            padding: 10px 20px;
-            background-color: #4CAF50;
+        input[type="submit"] {
+            background-color: #654caf;
+            color: white;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background-color: #5d45a0;
+        }
+        .product-cell {
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+        .sell-btn, .delete-btn {
+            padding: 8px 12px;
+            background-color: #ff6347;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            margin-right: 5px;
         }
-        input[type="submit"]:hover, .delete-btn:hover, .sell-btn:hover {
-            background-color: #45a049;
+        .sell-btn:hover, .delete-btn:hover {
+            background-color: #d9534f;
+        }
+        canvas {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #321ab9;
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -65,7 +100,7 @@
             <input type="text" id="productSku" name="productSku" required><br>
             <label for="productQuantity">Quantidade:</label>
             <input type="number" id="productQuantity" name="productQuantity" required><br>
-            <label for="productValue">Valor:</label>
+            <label for="productValue">Valor Unitário:</label>
             <input type="number" id="productValue" name="productValue" required><br>
             <input type="submit" value="Adicionar Produto">
         </form>
@@ -77,7 +112,8 @@
                     <th>Nome do Produto</th>
                     <th>SKU</th>
                     <th>Quantidade</th>
-                    <th>Valor</th>
+                    <th>Valor Unitário</th>
+                    <th>Valor Total</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -85,10 +121,16 @@
                 <!-- Os produtos serão listados aqui -->
             </tbody>
         </table>
+
+        <h2>Gráfico de Produtos em Estoque</h2>
+        <canvas id="productChart" width="400" height="200"></canvas>
     </div>
 
     <script>
-        // Função para adicionar um produto à tabela
+        var products = [];
+        var quantities = [];
+        var productChart;
+
         function addProduct() {
             var productName = document.getElementById('productName').value;
             var productSku = document.getElementById('productSku').value;
@@ -98,38 +140,41 @@
             var existingProduct = findProductBySku(productSku);
             
             if (existingProduct) {
-                // Se o produto já existir, aumenta a quantidade e o valor
                 var quantityCell = existingProduct.querySelector('.product-quantity');
                 var valueCell = existingProduct.querySelector('.product-value');
+                var unitValueCell = existingProduct.querySelector('.product-unit-value');
                 var currentQuantity = parseInt(quantityCell.innerHTML);
                 var currentValue = parseFloat(valueCell.innerHTML.substring(1));
                 quantityCell.innerHTML = currentQuantity + parseInt(productQuantity);
-                valueCell.innerHTML = '$' + (currentValue + parseFloat(productValue));
+                valueCell.innerHTML = '$' + (currentValue + parseFloat(productValue) * parseInt(productQuantity)); // Correção do cálculo do valor total
             } else {
-                // Se o produto não existir, adiciona-o à tabela
                 var newRow = table.insertRow(table.rows.length);
+                newRow.classList.add('product-cell');
                 var cell1 = newRow.insertCell(0);
                 var cell2 = newRow.insertCell(1);
                 var cell3 = newRow.insertCell(2);
                 var cell4 = newRow.insertCell(3);
                 var cell5 = newRow.insertCell(4);
+                var cell6 = newRow.insertCell(5);
                 cell1.innerHTML = productName;
                 cell2.innerHTML = productSku;
                 cell3.innerHTML = productQuantity;
-                cell3.classList.add('product-quantity'); // Adiciona uma classe para facilitar a identificação
+                cell3.classList.add('product-quantity');
                 cell4.innerHTML = "$" + productValue;
-                cell4.classList.add('product-value'); // Adiciona uma classe para facilitar a identificação
-                cell5.innerHTML = '<input type="number" class="sell-quantity" min="1" max="' + productQuantity + '"> <button class="sell-btn" onclick="sellProduct(this)">Vender</button> <button class="delete-btn" onclick="deleteProduct(this)">Excluir</button>';
+                cell4.classList.add('product-value');
+                cell5.innerHTML = "$" + (parseFloat(productValue) * parseInt(productQuantity)); // Correção do cálculo do valor total
+                cell5.classList.add('product-total-value'); // Adiciona uma classe para facilitar a identificação do valor total
+                cell6.innerHTML = '<input type="number" class="sell-quantity" min="1" max="' + productQuantity + '"> <button class="sell-btn" onclick="sellProduct(this)">Vender</button> <button class="delete-btn" onclick="deleteProduct(this)">Excluir</button>';
             }
             
-            // Limpa os campos do formulário
             document.getElementById('productName').value = '';
             document.getElementById('productSku').value = '';
             document.getElementById('productQuantity').value = '';
             document.getElementById('productValue').value = '';
+            
+            updateChartData();
         }
 
-        // Função para encontrar um produto na tabela pelo SKU
         function findProductBySku(sku) {
             var table = document.getElementById('productTable').getElementsByTagName('tbody')[0];
             var rows = table.getElementsByTagName('tr');
@@ -142,35 +187,84 @@
             return null;
         }
 
-        // Função para vender um produto
         function sellProduct(row) {
             var rowIndex = row.parentNode.parentNode.rowIndex;
             var table = document.getElementById('productTable');
             var quantityCell = table.rows[rowIndex].querySelector('.product-quantity');
             var currentQuantity = parseInt(quantityCell.innerHTML);
             var sellQuantity = parseInt(table.rows[rowIndex].querySelector('.sell-quantity').value);
-            
+            var unitValue = parseFloat(table.rows[rowIndex].querySelector('.product-value').innerHTML.substring(1));
+                
             if (currentQuantity >= sellQuantity) {
+                var totalValueCell = table.rows[rowIndex].querySelector('.product-total-value');
+                var currentValue = parseFloat(totalValueCell.innerHTML.substring(1));
+                var sellValue = sellQuantity * unitValue;
+                totalValueCell.innerHTML = '$' + (currentValue - sellValue);
                 currentQuantity -= sellQuantity;
                 quantityCell.innerHTML = currentQuantity;
-                
-                if (currentQuantity === 0) {
-                    alert("Estoque do prooduto esgotado: " + table.rows[rowIndex].cells[0].innerHTML);
+            
+                if (currentQuantity <= 3) {
+                    alert("Estoque do produto esgotado: " + table.rows[rowIndex].cells[0].innerHTML);
                 }
             } else {
                 alert("Quantidade insuficiente em estoque.");
             }
-        }
+            
+            updateChartData();
+        }          
 
-        // Função para excluir um produto
         function deleteProduct(row) {
             var rowIndex = row.parentNode.parentNode.rowIndex;
             document.getElementById('productTable').deleteRow(rowIndex);
+            
+            updateChartData();
         }
 
-        // Evento de envio do formulário de adicionar produto
+        function updateChartData() {
+            var table = document.getElementById('productTable').getElementsByTagName('tbody')[0];
+            var rows = table.getElementsByTagName('tr');
+            products = [];
+            quantities = [];
+            for (var i = 0; i < rows.length; i++) {
+                var productName = rows[i].cells[0].innerHTML;
+                var productQuantity = parseInt(rows[i].cells[2].innerHTML);
+                products.push(productName);
+                quantities.push(productQuantity);
+            }
+            
+            updateChart();
+        }
+
+        function updateChart() {
+            if (productChart) {
+                productChart.destroy(); // Destruir o gráfico anterior para evitar duplicatas
+            }
+
+            var ctx = document.getElementById('productChart').getContext('2d');
+            productChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: products,
+                    datasets: [{
+                        label: 'Quantidade em Estoque',
+                        data: quantities,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
         document.getElementById('addProductForm').addEventListener('submit', function(event) {
-            event.preventDefault(); // Impede o envio padrão do formulário
+            event.preventDefault();
             addProduct();
         });
     </script>
